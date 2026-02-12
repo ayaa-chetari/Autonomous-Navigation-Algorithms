@@ -53,26 +53,39 @@ class Maze:
     # Obstacles fixes 
    
     def set_fixed_obstacles(self) -> None:
+   
         self.clear_obstacles()
 
-        # Mur vertical colonne 3 avec une ouverture ligne 1
+        # Mur vertical colonne 3 avec DEUX ouvertures (ligne 1 et ligne 6)
         for i in range(self.height):
-            if i != 1:
+            if i not in (1, 6):
                 self.add_obstacle(i, 3)
 
-        # Mur vertical colonne 7 avec une ouverture ligne 5
+        # Mur vertical colonne 7 avec DEUX ouvertures (ligne 2 et ligne 5)
         for i in range(self.height):
-            if i != 5:
+            if i not in (2, 5):
                 self.add_obstacle(i, 7)
 
-        # Petit mur horizontal ligne 4, colonnes 8..10 avec ouverture en 9
+        # Petit mur horizontal ligne 4, colonnes 8..10 avec DEUX ouvertures (9 et 10)
         for j in range(8, 11):
-            if j != 9:
+            if j not in (9, 10):
                 self.add_obstacle(4, j)
+
+        # Quelques obstacles internes pour créer des DÉTOURS / choix
+       
+        extra_blocks = [
+            (1, 5), (2, 5),      
+            (5, 9),             
+            (6, 10),             
+            (3, 9)             
+        ]
+        for x, y in extra_blocks:
+            self.add_obstacle(x, y)
 
         # Sécurité : start/goal toujours libres
         self.grid[self.start[0]][self.start[1]] = 0
         self.grid[self.goal[0]][self.goal[1]] = 0
+
 
   
     # Partie C : A* (solve)
