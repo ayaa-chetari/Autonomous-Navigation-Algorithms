@@ -349,6 +349,83 @@ class Maze:
         gx, gy = self.goal
         self.reward[gx][gy] = goal_reward
 
+    def solve_with_weights(self) -> Optional[List[Tuple[int, int]]]:
+        """A* avec poids variables basés sur la matrice reward."""
+        start = self.start
+        goal = self.goal
+
+        open_heap = []
+        h_start = self.heuristic_manhattan(start, goal)
+        heapq.heappush(open_heap, (h_start, 0.0, start))
+
+        g_score = {start: 0.0}
+        came_from = {}
+        closed_set = set()
+
+        while open_heap:
+            _, g_current, current = heapq.heappop(open_heap)
+
+            if current in closed_set:
+                continue
+            closed_set.add(current)
+
+            if current == goal:
+                return self.reconstruct_path(came_from, current)
+
+            for neighbor in self.get_neighbors(*current):
+                if neighbor in closed_set:
+                    continue
+
+                nx, ny = neighbor
+                weight = -self.reward[nx][ny] if self.reward[nx][ny] < 0 else 1.0
+                tentative_g = g_current + weight
+
+                if neighbor not in g_score or tentative_g < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g
+                    h = self.heuristic_manhattan(neighbor, goal)
+                    f = tentative_g + h
+                    heapq.heappush(open_heap, (f, tentative_g, neighbor))
+
+        return None
+
+    def dijkstra_with_weights(self) -> Optional[List[Tuple[int, int]]]:
+        """Dijkstra avec poids variables basés sur la matrice reward."""
+        start = self.start
+        goal = self.goal
+
+        open_heap = []
+        heapq.heappush(open_heap, (0.0, start))
+
+        g_score = {start: 0.0}
+        came_from = {}
+        closed_set = set()
+
+        while open_heap:
+            g_current, current = heapq.heappop(open_heap)
+
+            if current in closed_set:
+                continue
+            closed_set.add(current)
+
+            if current == goal:
+                return self.reconstruct_path(came_from, current)
+
+            for neighbor in self.get_neighbors(*current):
+                if neighbor in closed_set:
+                    continue
+
+                nx, ny = neighbor
+                weight = -self.reward[nx][ny] if self.reward[nx][ny] < 0 else 1.0
+                tentative_g = g_current + weight
+
+                if neighbor not in g_score or tentative_g < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g
+                    heapq.heappush(open_heap, (tentative_g, neighbor))
+
+        return None
+
     def display_with_path(self, path):
         """Affiche le labyrinthe avec le chemin."""
         path_set = set(path) if path else set()
@@ -446,7 +523,7 @@ def run_tests():
     print("Longueur (4 directions):", len(path1) - 1)
     m1.display_with_path(path1)
 
-    print("\n=== TEST 2 : Obstacles simples (solvable) ===")
+    print("\n=== TEST 2 : Avec obstacles simples ===")
     m2 = Maze(8, 12, (0, 0), (7, 11))
     m2.set_fixed_obstacles()
     assert m2.is_walkable(*m2.start)
@@ -473,7 +550,9 @@ def run_tests():
     assert m3.is_walkable(*m3.goal)
     path3 = m3.solve()
     assert path3 is None
-    print("Aucun chemin trouvé (correct).")
+    print("Labyrinthe:")
+    m3.display()
+    print("Aucun chemin trouve.")
 
     # Test visualisation
     print("\n=== TEST 4 : Visualisation graphique (matplotlib) ===")
@@ -481,7 +560,7 @@ def run_tests():
     m4.set_fixed_obstacles()
     path4 = m4.solve()
     if path4:
-        print(f"Chemin trouvé avec {len(path4) - 1} étapes.")
+        print(f"Chemin trouve avec {len(path4) - 1} etapes.")
         m4.visualize(path4, title="A* avec 4 directions")
         
         path4_diag = m4.solve_with_diagonals()
@@ -495,7 +574,7 @@ def run_tests():
     m5.compare_algorithms()
 
     # Test 6 : Poids négatifs (récompenses)
-    print("\n=== TEST 6 : Test avec poids négatifs (champs de récompense) ===")
+    print("\n=== TEST 6 : Test avec poids negatifs (champs de recompense) ===")
     m6 = Maze(8, 12, (0, 0), (7, 11))
     m6.set_fixed_obstacles()
     
@@ -507,16 +586,43 @@ def run_tests():
     }
     m6.init_rewards(step_penalty=-1.0, goal_reward=50.0, bonus_cells=negative_zones)
     
-    print("Labyrinthe avec zones pénalisantes:")
-    print("  Récompenses négatives (< -1) aux positions: (3,5), (4,4), (5,6)")
-    m6.display()
+    print("Labyrinthe avec zones pénalisantes (poids négatifs):")
+    print("  Zones pénalisantes aux positions: (3,5), (4,4), (5,6)")
+    print("  Les algorithmes doivent éviter ces zones pour minimiser le coût\n")
     
-    path6 = m6.solve()
-    if path6:
-        print(f"Chemin trouvé, longueur: {len(path6) - 1}")
-        print(f"Positions du chemin: {path6}")
-       
-        m6.display_with_path(path6)
+    # Test avec A*
+    print("--- A* avec poids ---")
+    path6_astar = m6.solve_with_weights()
+    if path6_astar:
+        cost6_astar = sum(-m6.reward[path6_astar[i][0]][path6_astar[i][1]] 
+                         for i in range(len(path6_astar) - 1))
+        print(f"Chemin trouvé, longueur: {len(path6_astar) - 1}")
+        print(f"Coût total: {cost6_astar:.1f}")
+        print(f"Positions du chemin: {path6_astar}")
+        m6.display_with_path(path6_astar)
+    else:
+        print("Aucun chemin trouvé.")
+    
+    # Test avec Dijkstra
+    print("\n--- Dijkstra avec poids ---")
+    path6_dijkstra = m6.dijkstra_with_weights()
+    if path6_dijkstra:
+        cost6_dijkstra = sum(-m6.reward[path6_dijkstra[i][0]][path6_dijkstra[i][1]] 
+                            for i in range(len(path6_dijkstra) - 1))
+        print(f"Chemin trouvé, longueur: {len(path6_dijkstra) - 1}")
+        print(f"Coût total: {cost6_dijkstra:.1f}")
+        print(f"Positions du chemin: {path6_dijkstra}")
+        m6.display_with_path(path6_dijkstra)
+    else:
+        print("Aucun chemin trouvé.")
+    
+    # Comparaison
+    if path6_astar and path6_dijkstra:
+        print("\n--- Comparaison A* vs Dijkstra avec poids ---")
+        if len(path6_astar) == len(path6_dijkstra):
+            print(f" Les deux algorithmes trouvent un chemin de même longueur: {len(path6_astar) - 1}")
+        else:
+            print(f" Longueurs différentes: A*={len(path6_astar) - 1}, Dijkstra={len(path6_dijkstra) - 1}")
 
 
 if __name__ == "__main__":
